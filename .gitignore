@@ -12,3 +12,5 @@ src/tdc_falcon.egg-info/dependency_links.txt
 src/tdc_falcon.egg-info/PKG-INFO
 src/tdc_falcon.egg-info/SOURCES.txt
 src/tdc_falcon.egg-info/top_level.txt
+.idea
+.DS_Store
