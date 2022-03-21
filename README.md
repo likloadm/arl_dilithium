@@ -1,8 +1,8 @@
-# tdc_falcon
+# arl_dilithium
 
-Python Falcon-512 bindings for Tidecoin project.
-https://falcon-sign.info/
+Python dilithium3 bindings for Arielcoin project.
+https://pq-crystals.org/dilithium/
 
-Tidecoin is a Post-Quantum Secure crypocurrency
+Arielcoin is a Post-Quantum Secure crypocurrency
 
-https://tidecoin.org
+https://arielcoin.org
