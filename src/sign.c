@@ -7,6 +7,8 @@
 #include "sign.h"
 #include "symmetric.h"
 #include <stdint.h>
+#include <string.h>
+
 
 /*************************************************
 * Name:        PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair
@@ -20,7 +22,64 @@
 *
 * Returns 0 (success)
 **************************************************/
-int PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
+int PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair(uint8_t *pk, uint8_t *sk, uint8_t *myseed) {
+    uint8_t seedbuf[2 * SEEDBYTES + CRHBYTES];
+    uint8_t tr[SEEDBYTES];
+    const uint8_t *rho, *rhoprime, *key;
+    polyvecl mat[K];
+    polyvecl s1, s1hat;
+    polyveck s2, t1, t0;
+
+    /* Get randomness for rho, rhoprime and key */
+    //randombytes(seedbuf, SEEDBYTES);
+    memcpy(seedbuf,myseed,32);
+    shake256(seedbuf, 2 * SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
+    rho = seedbuf;
+    rhoprime = rho + SEEDBYTES;
+    key = rhoprime + CRHBYTES;
+
+    /* Expand matrix */
+    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_expand(mat, rho);
+
+    /* Sample short vectors s1 and s2 */
+    PQCLEAN_DILITHIUM3_CLEAN_polyvecl_uniform_eta(&s1, rhoprime, 0);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_uniform_eta(&s2, rhoprime, L);
+
+    /* Matrix-vector multiplication */
+    s1hat = s1;
+    PQCLEAN_DILITHIUM3_CLEAN_polyvecl_ntt(&s1hat);
+    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_pointwise_montgomery(&t1, mat, &s1hat);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_reduce(&t1);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_invntt_tomont(&t1);
+
+    /* Add error vector s2 */
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_add(&t1, &t1, &s2);
+
+    /* Extract t1 and write public key */
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_caddq(&t1);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_power2round(&t1, &t0, &t1);
+    PQCLEAN_DILITHIUM3_CLEAN_pack_pk(pk, rho, &t1);
+
+    /* Compute H(rho, t1) and write secret key */
+    shake256(tr, SEEDBYTES, pk, PQCLEAN_DILITHIUM3_CLEAN_CRYPTO_PUBLICKEYBYTES);
+    PQCLEAN_DILITHIUM3_CLEAN_pack_sk(sk, rho, tr, key, &t0, &s1, &s2);
+
+    return 0;
+}
+
+/*************************************************
+* Name:        PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair_random
+*
+* Description: Generates public and private key.
+*
+* Arguments:   - uint8_t *pk: pointer to output public key (allocated
+*                             array of PQCLEAN_DILITHIUM3_CLEAN_CRYPTO_PUBLICKEYBYTES bytes)
+*              - uint8_t *sk: pointer to output private key (allocated
+*                             array of PQCLEAN_DILITHIUM3_CLEAN_CRYPTO_SECRETKEYBYTES bytes)
+*
+* Returns 0 (success)
+**************************************************/
+int PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair_random(uint8_t *pk, uint8_t *sk) {
     uint8_t seedbuf[2 * SEEDBYTES + CRHBYTES];
     uint8_t tr[SEEDBYTES];
     const uint8_t *rho, *rhoprime, *key;
@@ -63,51 +122,6 @@ int PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
 
     return 0;
 }
-
-int PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair_seed(uint8_t *pk, uint8_t *sk, uint8_t *myseed) {
-    uint8_t seedbuf[2 * SEEDBYTES + CRHBYTES];
-    uint8_t tr[SEEDBYTES];
-    const uint8_t *rho, *rhoprime, *key;
-    polyvecl mat[K];
-    polyvecl s1, s1hat;
-    polyveck s2, t1, t0;
-
-    /* Get randomness for rho, rhoprime and key */
-    randombytes(seedbuf, SEEDBYTES);
-    shake256(seedbuf, 2 * SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
-    rho = seedbuf;
-    rhoprime = rho + SEEDBYTES;
-    key = rhoprime + CRHBYTES;
-
-    /* Expand matrix */
-    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_expand(mat, rho);
-
-    /* Sample short vectors s1 and s2 */
-    PQCLEAN_DILITHIUM3_CLEAN_polyvecl_uniform_eta(&s1, rhoprime, 0);
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_uniform_eta(&s2, rhoprime, L);
-
-    /* Matrix-vector multiplication */
-    s1hat = s1;
-    PQCLEAN_DILITHIUM3_CLEAN_polyvecl_ntt(&s1hat);
-    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_pointwise_montgomery(&t1, mat, &s1hat);
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_reduce(&t1);
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_invntt_tomont(&t1);
-
-    /* Add error vector s2 */
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_add(&t1, &t1, &s2);
-
-    /* Extract t1 and write public key */
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_caddq(&t1);
-    PQCLEAN_DILITHIUM3_CLEAN_polyveck_power2round(&t1, &t0, &t1);
-    PQCLEAN_DILITHIUM3_CLEAN_pack_pk(pk, rho, &t1);
-
-    /* Compute H(rho, t1) and write secret key */
-    shake256(tr, SEEDBYTES, pk, PQCLEAN_DILITHIUM3_CLEAN_CRYPTO_PUBLICKEYBYTES);
-    PQCLEAN_DILITHIUM3_CLEAN_pack_sk(sk, rho, tr, key, &t0, &s1, &s2);
-
-    return 0;
-}
-
 
 /*************************************************
 * Name:        PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_signature
@@ -385,4 +399,46 @@ badsig:
     }
 
     return -1;
+}
+
+int crypto_priv_to_pub(uint8_t *pk, uint8_t *sk) {
+    unsigned int n;
+    uint8_t seedbuf[3 * SEEDBYTES + 2 * CRHBYTES];
+    uint8_t *rho, *tr, *key, *mu, *rhoprime;
+    uint16_t nonce = 0;
+    polyvecl mat[K], s1, y, z;
+    polyveck t0, s2, w1, w0, h;
+    poly cp;
+    polyvecl s1hat;
+    polyveck t1;
+    shake256incctx state;
+
+    rho = seedbuf;
+    tr = rho + SEEDBYTES;
+    key = tr + SEEDBYTES;
+    mu = key + SEEDBYTES;
+    rhoprime = mu + CRHBYTES;
+    PQCLEAN_DILITHIUM3_CLEAN_unpack_sk(rho, tr, key, &t0, &s1, &s2, sk);
+    
+    /* Expand matrix */
+    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_expand(mat, rho);
+    
+    /* Matrix-vector multiplication */
+    s1hat = s1;
+    PQCLEAN_DILITHIUM3_CLEAN_polyvecl_ntt(&s1hat);
+    PQCLEAN_DILITHIUM3_CLEAN_polyvec_matrix_pointwise_montgomery(&t1, mat, &s1hat);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_reduce(&t1);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_invntt_tomont(&t1);
+
+    /* Add error vector s2 */
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_add(&t1, &t1, &s2);
+
+    /* Extract t1 and write public key */
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_caddq(&t1);
+    PQCLEAN_DILITHIUM3_CLEAN_polyveck_power2round(&t1, &t0, &t1);
+
+    PQCLEAN_DILITHIUM3_CLEAN_pack_pk(pk, rho, &t1);  
+
+    return 0;
+
 }

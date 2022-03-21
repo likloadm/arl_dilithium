@@ -17,7 +17,7 @@ static PyObject *crypto_sign_keypair_python(PyObject *self, PyObject *args)
     pubkey = PyMem_Malloc(1952);
     privkey = PyMem_Malloc(4000);
 
-    PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair_seed(pubkey, privkey, (uint8_t *)PyBytes_AsString((PyObject*) seed));
+    PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair(pubkey, privkey, (uint8_t *)PyBytes_AsString((PyObject*) seed));
 
     Py_DECREF(seed);
 
@@ -45,7 +45,7 @@ static PyObject *crypto_sign_keypair_random_python(PyObject *self)
     pubkey = PyMem_Malloc(1952);
     privkey = PyMem_Malloc(4000);
 
-    PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair(pubkey, privkey);
+    PQCLEAN_DILITHIUM3_CLEAN_crypto_sign_keypair_random(pubkey, privkey);
 
     private_key = Py_BuildValue("y#", privkey, 4000);
     public_key = Py_BuildValue("y#", pubkey, 1952);
@@ -115,11 +115,36 @@ static PyObject *crypto_sign_verify_python(PyObject *self, PyObject *args)
 
 }
 
+static PyObject *crypto_priv_to_pub_python(PyObject *self, PyObject *args)
+{
+    PyBytesObject *sk;
+    PyObject *public_key;
+    uint8_t *pubkey;
+
+    if (!PyArg_ParseTuple(args, "S", &sk))
+        return NULL;
+    Py_INCREF(sk);
+
+    pubkey = PyMem_Malloc(1952);
+
+    crypto_priv_to_pub(pubkey, (uint8_t *)PyBytes_AsString((PyObject*) sk));
+
+    Py_DECREF(sk);
+
+    public_key = Py_BuildValue("y#", pubkey, 1952);
+
+    PyMem_Free(pubkey);
+
+    return public_key;
+
+}
+
 static PyMethodDef arl_dilithiumMethods[] = {
     { "generate_keypair", (PyCFunction)crypto_sign_keypair_python, METH_VARARGS, "crypto_sign_keypair_python" },
     { "generate_keypair_random", (PyCFunction)crypto_sign_keypair_random_python, METH_VARARGS, "crypto_sign_keypair_random_python" },
     { "sign", (PyCFunction)crypto_sign_signature_python, METH_VARARGS, "crypto_sign_signature_python" },
     { "verify", (PyCFunction)crypto_sign_verify_python, METH_VARARGS, "crypto_sign_verify_python" },
+    { "priv_to_pub", (PyCFunction)crypto_priv_to_pub_python, METH_VARARGS, "crypto_priv_to_pub_python" },
     { NULL, NULL, 0, NULL }
 };
 
